@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Every recall reopens the write</title>
+<style>
+  :root {
+    --paper:        #f4ede0;
+    --paper-deep:   #ebe1cf;
+    --panel:        #fbf6ea;
+    --ink:          #1d1a14;
+    --ink-soft:     #4a4438;
+    --ink-mute:     #7a7263;
+    --rule:         #c9bda3;
+    --rule-soft:    #ddd2ba;
+    --accent:       #c44a3b;
+    --accent-deep:  #7a2b1f;
+    --hot:          #E24B4A;
+    --strong:       #EF9F27;
+    --moss:         #7a8a53;
+    --tape:         #4a6a72;
+    --spoke:        #c96f1a;
+    --spoke-deep:   #8a4a0e;
+    --serif: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+    --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans: -apple-system, 'Helvetica Neue', 'Segoe UI', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--paper); }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(circle at 12% 8%, rgba(0,0,0,0.025) 1px, transparent 1.5px),
+      radial-gradient(circle at 76% 42%, rgba(0,0,0,0.02) 1px, transparent 1.5px),
+      radial-gradient(circle at 32% 78%, rgba(0,0,0,0.025) 1px, transparent 1.5px);
+    background-size: 220px 220px, 180px 180px, 260px 260px;
+  }
+
+  .frame { max-width: 880px; margin: 0 auto; padding: 64px 32px 96px; }
+
+
+  .series-nav {
+    display: flex;
+    gap: 8px 26px;
+    flex-wrap: wrap;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--rule);
+    margin: 0 0 40px;
+  }
+  .series-nav a { color: var(--ink-mute); text-decoration: none; }
+  .series-nav a:hover { color: var(--accent-deep); text-decoration: underline; }
+  .series-nav .here { color: var(--accent); font-weight: 500; }
+
+  .kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent-deep);
+    margin: 0 0 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .kicker::before, .kicker::after { content: ''; flex: 1; height: 1px; background: var(--rule); }
+
+  h1 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: clamp(38px, 6vw, 64px);
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    margin: 0 0 24px;
+    font-style: italic;
+    text-wrap: balance;
+  }
+  h1 .accent { color: var(--accent); font-style: normal; font-weight: 500; }
+
+  .dek {
+    font-family: var(--serif);
+    font-size: 20px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    max-width: 640px;
+    margin: 0 0 8px;
+  }
+
+  .byline {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 32px 0 56px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  h2 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 28px;
+    letter-spacing: -0.01em;
+    margin: 56px 0 16px;
+  }
+  h2 .num {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--accent);
+    margin-right: 12px;
+    vertical-align: middle;
+    font-weight: 500;
+  }
+
+  p { font-size: 17px; margin: 0 0 18px; color: var(--ink); }
+  p.lead::first-letter {
+    font-family: var(--serif);
+    font-size: 56px;
+    font-weight: 500;
+    float: left;
+    line-height: 0.9;
+    margin: 6px 10px 0 0;
+    color: var(--accent);
+  }
+
+  ul.notes { list-style: none; padding: 0; margin: 0 0 24px; counter-reset: item; }
+  ul.notes li { position: relative; padding-left: 28px; margin-bottom: 14px; font-size: 16px; }
+  ul.notes li::before {
+    content: counter(item, decimal-leading-zero);
+    counter-increment: item;
+    position: absolute;
+    left: 0; top: 2px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    font-weight: 500;
+  }
+  ul.notes strong { font-family: var(--serif); font-weight: 500; font-style: italic; color: var(--ink); }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    padding: 28px;
+    margin: 40px 0;
+    position: relative;
+  }
+  .panel::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border: 1px solid var(--rule-soft);
+    pointer-events: none;
+    transform: translate(6px, 6px);
+    z-index: -1;
+  }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 18px; }
+  button.ctl {
+    font-family: var(--sans);
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 0;
+    transition: background 0.15s;
+  }
+  button.ctl:hover { background: var(--accent); }
+  button.ctl:active { transform: translateY(1px); }
+  button.ctl:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.ctl.cut { background: var(--accent); }
+  button.ctl.cut:hover { background: var(--accent-deep); }
+  button.ctl.quiet { background: transparent; color: var(--ink-mute); border: 1px dashed var(--rule); }
+  button.ctl.quiet:hover { color: var(--accent-deep); border-color: var(--accent); background: transparent; }
+  button.ctl[disabled] { opacity: 0.4; cursor: default; }
+  button.ctl[disabled]:hover { background: var(--ink); }
+  button.ctl.cut[disabled]:hover { background: var(--accent); }
+  button.ctl.quiet[disabled]:hover { color: var(--ink-mute); border-color: var(--rule); }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    border: 1px solid var(--rule);
+    padding: 6px 12px;
+    background: var(--paper);
+  }
+  .chip strong { color: var(--ink); font-weight: 500; }
+  .chip.live { border-color: var(--accent); color: var(--accent-deep); }
+
+  .stage { width: 100%; background: var(--paper); border: 1px solid var(--rule); position: relative; overflow: hidden; }
+  .stage canvas { display: block; width: 100%; height: 100%; }
+  .stage.traces { aspect-ratio: 680 / 170; }
+  .stage.errs { aspect-ratio: 680 / 100; margin-top: 14px; }
+
+  .stage-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin: 14px 0 6px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .meters { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 14px; }
+  .meter { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-mute); }
+  .meter .bar-track { width: 110px; height: 6px; background: var(--rule-soft); position: relative; }
+  .meter .bar-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; transition: width 0.2s linear, background 0.3s; }
+  .meter .val { font-family: var(--mono); font-size: 12px; font-weight: 500; min-width: 38px; color: var(--ink); }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 18px;
+    margin-top: 16px; padding-top: 14px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+  }
+  .legend-item { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 18px; height: 3px; }
+  .swatch.dash { background: repeating-linear-gradient(90deg, currentColor 0 4px, transparent 4px 8px); }
+
+  .pullquote {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 24px;
+    line-height: 1.35;
+    color: var(--ink-soft);
+    border-left: 3px solid var(--spoke);
+    padding: 8px 0 8px 24px;
+    margin: 36px 0;
+  }
+
+  .experiments { list-style: none; padding: 0; margin: 0 0 24px; counter-reset: exp; }
+  .experiments li {
+    position: relative;
+    padding: 16px 18px 16px 58px;
+    margin-bottom: 12px;
+    background: var(--panel);
+    border: 1px solid var(--rule);
+    font-size: 16px;
+  }
+  .experiments li::before {
+    content: 'EX ' counter(exp, decimal-leading-zero);
+    counter-increment: exp;
+    position: absolute;
+    left: 16px; top: 18px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    font-weight: 500;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+  .experiments strong { font-family: var(--serif); font-weight: 500; font-style: italic; }
+  .experiments .result { display: block; margin-top: 6px; font-size: 14px; color: var(--ink-mute); }
+  .experiments .result::before { content: '→ '; color: var(--accent); }
+
+  figure.diagram { margin: 36px 0; }
+  figure.diagram svg { width: 100%; height: auto; display: block; }
+  figure.diagram figcaption {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  .diagram .station { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; fill: var(--ink); font-weight: 500; }
+  .diagram .station-sub { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.06em; fill: var(--ink-mute); }
+  .diagram .ring { fill: none; stroke: var(--ink-soft); stroke-width: 1.5; }
+  .diagram .spoke-line { stroke: var(--spoke); stroke-width: 2.5; }
+  .diagram .dot { fill: var(--ink); }
+  .diagram .self-core { fill: var(--strong); stroke: var(--spoke-deep); stroke-width: 1.5; }
+  .diagram .self-text { font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.12em; fill: var(--ink); text-anchor: middle; }
+  .diagram .ghost { opacity: 0.22; }
+  .diagram .reroute { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+  .diagram .reroute-label { font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; fill: var(--accent-deep); }
+
+  .footnote {
+    font-size: 14px;
+    color: var(--ink-mute);
+    font-style: italic;
+    border-top: 1px solid var(--rule);
+    padding-top: 16px;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 640px) {
+    .frame { padding: 40px 20px 64px; }
+    .dek { font-size: 17px; }
+    .panel { padding: 16px; margin: 28px 0; }
+    h2 { font-size: 22px; }
+    .experiments li { padding-left: 48px; }
+  }
+</style>
+</head>
+<body>
+
+<main class="frame">
+
+  <nav class="series-nav" aria-label="Field Notes series">
+    <a href="activation.html">Vol. I · Spreading activation</a>
+    <a href="index.html">Vol. II · The engine</a>
+    <a href="contrast.html">Vol. III · Cut open</a>
+    <span class="here" aria-current="page">Vol. IV · The rewrite</span>
+  </nav>
+
+  <p class="kicker">Cognitive Science · Field Notes · Vol. IV</p>
+
+  <h1>Every recall <span class="accent">reopens the write</span></h1>
+
+  <p class="dek">Volume III confessed a gap: real memories, unlike recordings, are reshaped by every act of recall. This volume closes it. Below, a memory of a finished event, one the world can no longer correct. Retell it and watch the details wash out. Ask one leading question and watch something that never happened move in for good.</p>
+
+  <div class="byline">
+    <span>An interactive essay · follows Vol. III, "Cut open"</span>
+    <span>Read time · 7 min</span>
+  </div>
+
+  <p class="lead">Psychology found this out three times, by three different roads. Frederic Bartlett (1932) had people retell a folktale at widening intervals and watched each retelling drift further toward the teller's own conventions: war canoes became boats, seal hunts became fishing trips, and the strange parts quietly conformed or vanished. Elizabeth Loftus showed that the drift can be steered: ask an eyewitness "how fast was the car going when it passed the barn?" and a barn that was never on the film starts appearing in their memory of it. And the neuroscience of reconsolidation (Nader and colleagues, 2000) supplied the mechanism: a reactivated memory becomes temporarily labile and must be written down again, together with whatever else is present at the moment of recall. Three findings, one shape. Recall is not read-only.</p>
+
+  <p>None of that fits the engine of Volume II as built, because that engine always had the world on tap to retrain against. So this volume changes the model in exactly one place and nowhere else:</p>
+
+  <ul class="notes">
+    <li><strong>The event is over.</strong> The world signal is gone for good. What remains is a cue, the mere prompt "tell me about it," and a readout trained, while the event was still happening, to rebuild the whole experience from the cue-driven ripples.</li>
+    <li><strong>The only writer left is recall.</strong> Between recalls the readout is untouched, and an untouched memory here keeps perfectly, because the past does not drift. Consolidation now runs only during remembering, and the only training signal it can find is the retelling itself, plus whatever the situation slips into it.</li>
+    <li><strong>Nothing can veto the story.</strong> In Volume II every distortion washed out in seconds because the world was still streaming in. Here there is no world to appeal to. Whatever a retelling writes, stays written, until the next retelling writes over it.</li>
+  </ul>
+
+  <h2><span class="num">§ 01</span>The model, changed in one place</h2>
+
+  <p>The reservoir below is the same 90-unit network as Volume II: fixed sparse random weights, leaky nonlinear units, one linear readout. The event it experienced was a waveform with a distinctive detail riding on a plain fundamental. During the event, consolidation trained the readout to rebuild the full waveform from the cue alone. Now the event is over. The black line is the event as it actually happened (we, the experimenters, kept a copy; the network has no access to it). The red line is the event as the network currently remembers it, reconstructed live from the cue-driven reservoir state.</p>
+
+  <p>Press <em>Retell it</em> and the memory is recalled with consolidation on: the readout retrains toward a slightly smoothed, more conventional copy of its own last retelling. That is reconsolidation, and the smoothing is Bartlett's schema pull. Press <em>Ask a leading question</em> and the same thing happens, except the retelling now carries a suggestion mixed into it, a component that was never in the event. The network has no way to file it separately.</p>
+
+  <div class="panel">
+    <div class="controls">
+      <button class="ctl" id="runBtn" aria-pressed="true">Pause</button>
+      <button class="ctl" id="retellBtn">Retell it</button>
+      <button class="ctl cut" id="questionBtn">Ask a leading question</button>
+      <button class="ctl quiet" id="reliveBtn">Relive the event</button>
+      <span class="chip" id="stateChip">Memory formed · untouched</span>
+    </div>
+
+    <div class="stage-label"><span>The event as it happened, and as now remembered</span></div>
+    <div class="stage traces"><canvas id="traces"></canvas></div>
+
+    <div class="stage-label"><span>Fidelity to the original · recall episodes shaded</span></div>
+    <div class="stage errs"><canvas id="errs"></canvas></div>
+
+    <div class="meters">
+      <span class="meter">Gist <span class="bar-track"><span class="bar-fill" id="gistBar"></span></span> <span class="val" id="gistVal">–</span></span>
+      <span class="meter">Detail <span class="bar-track"><span class="bar-fill" id="detailBar"></span></span> <span class="val" id="detailVal">–</span></span>
+      <span class="meter">Intrusion <span class="bar-track"><span class="bar-fill" id="intrBar"></span></span> <span class="val" id="intrVal">–</span></span>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="swatch" style="background:#1d1a14"></span>The event (as it happened)</span>
+      <span class="legend-item"><span class="swatch" style="background:#c44a3b"></span>As now remembered</span>
+      <span class="legend-item"><span class="swatch" style="background:#9a917e"></span>The cue (the prompt)</span>
+      <span class="legend-item"><span class="swatch dash" style="color:#4a6a72"></span>The suggestion (never happened)</span>
+    </div>
+  </div>
+
+  <p>The meters are scored against the original event. <em>Gist</em> is the fundamental, the broad shape of what happened. <em>Detail</em> is the distinctive component that made this event this event. <em>Intrusion</em> measures how much of the suggested, never-experienced component the current memory contains. The network sees none of these numbers. From the inside, every reconstruction is equally fluent.</p>
+
+  <h2><span class="num">§ 02</span>What to look for</h2>
+
+  <ol class="experiments">
+    <li><strong>Leave it alone.</strong> Do nothing. Watch the fidelity strip stay flat, for minutes, forever.
+      <span class="result">An unrecalled memory in this model does not fade, because nothing is training and the past does not drift. Notice what that makes it: a frozen readout is exactly Volume III's recording. Between recalls, a memory is a recording. It only becomes something else, for better and worse, at the moment you open it.</span></li>
+    <li><strong>Retell it, a few times.</strong> Each retelling smooths the waveform a step toward the generic. The detail meter falls roughly a third per retelling; gist barely moves; fidelity steps down and stays down.
+      <span class="result">This is Bartlett's serial reproduction, run on weights instead of undergraduates. Gist survives because the cue keeps it anchored. Detail conforms because the schema pull is the only editor present. Nothing is erased; the memory is re-fit, each time, to the previous telling.</span></li>
+    <li><strong>Ask a leading question.</strong> One press. The intrusion meter jumps, and a component that was never in the event is now confidently part of the reconstruction. Now retell it innocently a few times: the intrusion stays, schematized at the same gentle rate as the genuine details.
+      <span class="result">The misinformation effect, live. The implanted detail is stored by the same reconsolidation that stores real ones, so later retellings carry it forward as if it had always been there. The system has no tag that distinguishes experienced from suggested. Neither, the evidence says, do we.</span></li>
+    <li><strong>Relive the event.</strong> The only undo. Re-experiencing the original restores detail and flushes the intrusion completely.
+      <span class="result">And that is the punchline: for a real past event there is no relive button. Volume II's distortions healed in seconds because the world was still there to retrain against. A finished event has no world left. Whatever recall writes is, from then on, the event.</span></li>
+  </ol>
+
+  <h2><span class="num">§ 03</span>The loop, re-plumbed</h2>
+
+  <p>Volume II's load-bearing claim was that the loop is what makes it memory. That loop has not been cut here. It has been re-plumbed. Draw it and look at where the return path runs now:</p>
+
+  <figure class="diagram">
+    <svg viewBox="0 0 680 420" role="img" aria-label="The six-station memory cycle with the world and action stations faded out, and a new red return path running from reconstruction directly back to the stream. The self remains at the hub, connected to the four living stations.">
+      <defs>
+        <marker id="arrSpoke" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="7" markerHeight="6" orient="auto">
+          <path d="M0,0 L10,4 L0,8 Z" fill="#c96f1a"/>
+        </marker>
+        <marker id="arrSpokeRev" viewBox="0 0 10 8" refX="9" refY="4" markerWidth="7" markerHeight="6" orient="auto-start-reverse">
+          <path d="M0,0 L10,4 L0,8 Z" fill="#c96f1a"/>
+        </marker>
+        <marker id="arrRed" viewBox="0 0 10 8" refX="8" refY="4" markerWidth="8" markerHeight="7" orient="auto">
+          <path d="M0,0 L10,4 L0,8 Z" fill="#c44a3b"/>
+        </marker>
+      </defs>
+
+      <!-- ring -->
+      <circle cx="340" cy="210" r="140" class="ring" opacity="0.35"/>
+
+      <!-- flow arrows: right side (alive), left side (ghosted) -->
+      <g fill="#4a4438">
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(410,88.8) rotate(30)"/>
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(480,210) rotate(90)"/>
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(410,331.2) rotate(150)"/>
+      </g>
+      <g fill="#4a4438" class="ghost">
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(270,331.2) rotate(210)"/>
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(200,210) rotate(270)"/>
+        <path d="M -7 -4.5 L 7 0 L -7 4.5 Z" transform="translate(270,88.8) rotate(330)"/>
+      </g>
+
+      <!-- the new return path: reconstruction feeds the stream directly -->
+      <path class="reroute" d="M 322 344 C 200 310, 200 110, 322 78" marker-end="url(#arrRed)"/>
+      <text x="196" y="206" text-anchor="middle" class="reroute-label">the story</text>
+      <text x="196" y="220" text-anchor="middle" class="reroute-label">so far</text>
+
+      <!-- spokes to the four living stations -->
+      <g>
+        <line x1="340" y1="164" x2="340" y2="118" class="spoke-line" marker-end="url(#arrSpoke)" marker-start="url(#arrSpokeRev)"/>
+        <line x1="379.8" y1="187" x2="419.7" y2="164" class="spoke-line" marker-end="url(#arrSpoke)" marker-start="url(#arrSpokeRev)"/>
+        <line x1="379.8" y1="233" x2="419.7" y2="256" class="spoke-line" marker-end="url(#arrSpoke)" marker-start="url(#arrSpokeRev)"/>
+        <line x1="340" y1="256" x2="340" y2="302" class="spoke-line" marker-end="url(#arrSpoke)" marker-start="url(#arrSpokeRev)"/>
+      </g>
+      <!-- ghosted spokes to the dark stations -->
+      <g class="ghost">
+        <line x1="300.2" y1="233" x2="260.3" y2="256" class="spoke-line"/>
+        <line x1="300.2" y1="187" x2="260.3" y2="164" class="spoke-line"/>
+      </g>
+
+      <!-- station dots -->
+      <circle cx="340" cy="70" r="5" class="dot"/>
+      <circle cx="461.2" cy="140" r="5" class="dot"/>
+      <circle cx="461.2" cy="280" r="5" class="dot"/>
+      <circle cx="340" cy="350" r="5" class="dot"/>
+      <circle cx="218.8" cy="280" r="5" class="dot ghost"/>
+      <circle cx="218.8" cy="140" r="5" class="dot ghost"/>
+
+      <!-- labels -->
+      <text x="340" y="48" text-anchor="middle" class="station">STREAM</text>
+      <text x="478" y="130" text-anchor="start" class="station">CONSOLIDATION</text>
+      <text x="478" y="144" text-anchor="start" class="station-sub">runs only during recall</text>
+      <text x="478" y="292" text-anchor="start" class="station">READOUT</text>
+      <text x="478" y="306" text-anchor="start" class="station-sub">the only trained part</text>
+      <text x="340" y="382" text-anchor="middle" class="station">RECONSTRUCTION</text>
+      <text x="340" y="396" text-anchor="middle" class="station-sub">now also the source</text>
+      <text x="202" y="292" text-anchor="end" class="station ghost">ACTION</text>
+      <text x="202" y="130" text-anchor="end" class="station ghost">WORLD</text>
+      <text x="202" y="144" text-anchor="end" class="station-sub ghost">gone · the event is over</text>
+
+      <!-- self -->
+      <circle cx="340" cy="210" r="36" class="self-core"/>
+      <text x="340" y="215" class="self-text">SELF</text>
+    </svg>
+    <figcaption>The engine of Vol. II with the world gone dark. The return path now runs through the last reconstruction. The loop still closes, around the story.</figcaption>
+  </figure>
+
+  <p>For a live situation, the cycle closed through the world, and the world pushed back: act on a wrong memory and reality corrects you. For a finished event, the cycle closes through the self's own reconstructions. The stream that consolidation learns from is the retelling; the retelling is whatever the readout produced last time, gated and framed by the self, in whatever company the recall happens. The engine's defining virtue in Volume II, that training never stops, is untouched. It has simply lost its anchor. The same mechanism that kept memory current in a drifting world now lets a well-placed question write fiction into it.</p>
+
+  <div class="pullquote">
+    Reconsolidation and suggestibility are not a feature and a bug. They are one mechanism, seen on a good day and a bad one.
+  </div>
+
+  <p>And notice what the model cannot feel. The fidelity meters exist because we kept the original waveform offstage. The network has no such oracle, and neither do you. From the inside, reconstruction is just as fluent when it is wrong: the flashbulb-memory studies that followed people for ten years after 9/11 found accuracy falling for the first year while confidence never budged, and errors, once introduced, repeated in report after report. A reconstructive system fails silently to its owner. Volume III said that silent failure was the mark of a recording; the uncomfortable amendment is that on this one axis, a rememberer is no better off, because the error signal that drives correction needs a world to compare against, and the world of a past event is gone.</p>
+
+  <h2><span class="num">§ 04</span>What this is and isn't</h2>
+
+  <p>The experiments above are real behaviors of a real (tiny) echo state network under reconsolidation-style training. The usual honest caveats:</p>
+
+  <p>First, <strong>the schema pull is asserted.</strong> Each retelling here trains toward a measured blend of the previous telling and the cue's plain shape. Real schematization is not a fixed blending coefficient; it emerges from a lifetime of knowledge about how stories usually go, which is why Bartlett's participants drifted toward their culture's conventions, not toward a sine wave. The direction of drift is the model's claim; the mechanism producing that direction is borrowed, not earned.</p>
+
+  <p>Second, <strong>nothing decays here, on purpose.</strong> Real memories fade unrehearsed. The model deliberately removes every other source of change, so that whatever you see on the fidelity strip is attributable to recall and recall alone. It is the same ablation logic as Volume III: hold everything constant, permit one arrow, and attribute the difference to the arrow.</p>
+
+  <p>Third, <strong>the consolidation rule had to grow up.</strong> Volume II's readout was trained by a rule that chases: it stayed accurate only because it never stopped correcting, which is fine for a memory that is never off duty. A memory that must hold still between recalls needs a rule that actually converges, so consolidation here runs the recursive form of least squares. Biology faces the same problem, a trace that must survive long gaps in training, and solves it with offline replay during sleep rather than with better algebra.</p>
+
+  <p>Fourth, <strong>implanting is too easy here.</strong> One question, one wiggle, written in at full strength. Human memory has brakes this model lacks: reconsolidation only opens under particular reactivation conditions, implantation studies succeed in a minority of participants, and critics of the false-memory literature (Pezdek among them) rightly note that a mechanism existing is not proof of how often it fires. The model shows the door exists and opens inward. How often it gets pushed is an empirical question about people, not weights.</p>
+
+  <p class="footnote">Serial reproduction and the reconstructive view of remembering: Frederic Bartlett, <em>Remembering</em> (1932). The misinformation effect: Loftus &amp; Palmer (1974), Loftus (1975), and the implanted "lost in the mall" memories of Loftus &amp; Pickrell (1995). Flashbulb confidence outliving flashbulb accuracy: Hirst et al. (2015), the ten-year 9/11 follow-up. Reconsolidation as lability at recall: Nader, Schafe &amp; LeDoux (2000); its proposed therapeutic use: Lane, Ryan, Nadel &amp; Greenberg (2015). The framing of the self as the gating hub of a closed sensing-acting cycle follows Michael Levin, as throughout this series.</p>
+
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- utilities ----------
+  function randn() {
+    var u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  // ---------- reservoir construction (same recipe as Vol. II) ----------
+  var N = 90, D = N + 1;                 // D: readout features = [1, x]
+  var W = new Float32Array(N * N);
+  for (var i0 = 0; i0 < N; i0++) {
+    for (var j0 = 0; j0 < N; j0++) {
+      if (i0 !== j0 && Math.random() < 0.1) W[i0 * N + j0] = randn();
+    }
+  }
+  (function scaleW() {
+    var v = new Float32Array(N), nv = new Float32Array(N), est = 1;
+    for (var i = 0; i < N; i++) v[i] = randn();
+    for (var it = 0; it < 40; it++) {
+      var norm = 0;
+      for (var a = 0; a < N; a++) {
+        var s = 0;
+        for (var b = 0; b < N; b++) s += W[a * N + b] * v[b];
+        nv[a] = s; norm += s * s;
+      }
+      norm = Math.sqrt(norm) || 1;
+      est = norm;
+      for (var c = 0; c < N; c++) v[c] = nv[c] / norm;
+    }
+    var sc = 0.92 / (est || 1);
+    for (var k = 0; k < W.length; k++) W[k] *= sc;
+  })();
+
+  var win = new Float32Array(N), biasV = new Float32Array(N);
+  for (var i1 = 0; i1 < N; i1++) { win[i1] = (Math.random() * 2 - 1) * 0.9; biasV[i1] = (Math.random() * 2 - 1) * 0.2; }
+
+  var x = new Float32Array(N);
+  var wOut = new Float64Array(D);        // the memory: [bias, weights]
+  var wSnap = new Float64Array(D);       // frozen copy of the last telling
+
+  // ---------- consolidation: recursive least squares ----------
+  var P = new Float64Array(D * D);
+  var LAM = 0.9995;
+  var feat = new Float64Array(D), Px = new Float64Array(D);
+  function resetP() {
+    P.fill(0);
+    for (var i = 0; i < D; i++) P[i * D + i] = 100;
+  }
+  resetP();
+
+  // ---------- the event ----------
+  var WFREQ = 0.045, ALPHA = 0.3, NOISE = 0.10;
+  var SCHEMA = 0.3;                      // pull toward the conventional shape, per retelling
+  var SUGGEST = 0.8;                     // strength of the leading question
+  function eventSig(t)  { return Math.sin(t) + 0.55 * Math.sin(2 * t + 1.2); }
+  function detailSig(t) { return 0.55 * Math.sin(2 * t + 1.2); }
+  function misinfo(t)   { return 0.5 * Math.sin(3 * t + 0.5); }
+
+  var th = 0, y = 0, world = 0, cueNow = 0, emaErr = 1;
+
+  // mode: 'idle' | 'study' | 'retell' | 'question'
+  var mode = 'idle', episodeLeft = 0;
+  var retells = 0, questions = 0;
+
+  function simStep() {
+    th += WFREQ;
+    var cue = Math.sin(th);
+    cueNow = cue;
+    var u = cue + NOISE * randn();
+
+    var pre = new Float32Array(N);
+    for (var a = 0; a < N; a++) {
+      var s = win[a] * u + biasV[a];
+      var row = a * N;
+      for (var b = 0; b < N; b++) s += W[row + b] * x[b];
+      pre[a] = s;
+    }
+    for (var c = 0; c < N; c++) x[c] = (1 - ALPHA) * x[c] + ALPHA * Math.tanh(pre[c]);
+
+    feat[0] = 1;
+    for (var f = 0; f < N; f++) feat[f + 1] = x[f];
+    y = 0;
+    for (var g = 0; g < D; g++) y += wOut[g] * feat[g];
+
+    world = eventSig(th);
+    emaErr = 0.996 * emaErr + 0.004 * Math.min(2, Math.abs(world - y));
+
+    var target = null;
+    if (mode === 'study') {
+      target = world;
+    } else if (mode === 'retell' || mode === 'question') {
+      var y0 = 0;
+      for (var h = 0; h < D; h++) y0 += wSnap[h] * feat[h];
+      target = (1 - SCHEMA) * y0 + SCHEMA * cue;
+      if (mode === 'question') target += SUGGEST * misinfo(th);
+    }
+    if (target !== null) {
+      var denom = LAM;
+      for (var i = 0; i < D; i++) {
+        var s2 = 0, row2 = i * D;
+        for (var j = 0; j < D; j++) s2 += P[row2 + j] * feat[j];
+        Px[i] = s2;
+      }
+      for (var i2 = 0; i2 < D; i2++) denom += feat[i2] * Px[i2];
+      var err = target - y;
+      for (var i3 = 0; i3 < D; i3++) wOut[i3] += Px[i3] * err / denom;
+      for (var i4 = 0; i4 < D; i4++) {
+        var ki = Px[i4] / denom, row3 = i4 * D;
+        for (var j2 = 0; j2 < D; j2++) P[row3 + j2] = (P[row3 + j2] - ki * Px[j2]) / LAM;
+      }
+    }
+
+    if (episodeLeft > 0) {
+      episodeLeft--;
+      if (episodeLeft === 0) endEpisode();
+    }
+  }
+
+  // ---------- probe: exact scoring on a noise-free clone ----------
+  var PROBE = 279;                       // two fundamental periods
+  var gist = 0, detail = 0, intr = 0;
+  function probe() {
+    var xp = Float32Array.from(x);
+    var tp = th, sG = 0, sD = 0, s3s = 0, s3c = 0;
+    for (var t = 0; t < PROBE; t++) {
+      tp += WFREQ;
+      var u = Math.sin(tp);
+      var pre = new Float32Array(N);
+      for (var a = 0; a < N; a++) {
+        var s = win[a] * u + biasV[a];
+        var row = a * N;
+        for (var b = 0; b < N; b++) s += W[row + b] * xp[b];
+        pre[a] = s;
+      }
+      for (var c = 0; c < N; c++) xp[c] = (1 - ALPHA) * xp[c] + ALPHA * Math.tanh(pre[c]);
+      var yp = wOut[0];
+      for (var i = 0; i < N; i++) yp += wOut[i + 1] * xp[i];
+      sG += yp * Math.sin(tp);
+      sD += yp * detailSig(tp);
+      s3s += yp * Math.sin(3 * tp + 0.5);
+      s3c += yp * Math.cos(3 * tp + 0.5);
+    }
+    gist = Math.max(0, Math.min(1, (sG / PROBE) / 0.5));
+    detail = Math.max(0, Math.min(1, (sD / PROBE) / 0.15125));
+    intr = Math.max(0, Math.min(1, Math.sqrt(s3s * s3s + s3c * s3c) / PROBE / 0.25));
+  }
+
+  // ---------- canvases ----------
+  var traces = document.getElementById('traces');
+  var errsCv = document.getElementById('errs');
+  var tctx = traces.getContext('2d');
+  var ectx = errsCv.getContext('2d');
+
+  function fitCanvas(cv, aw, ah) {
+    var dpr = window.devicePixelRatio || 1;
+    var w = cv.clientWidth || aw;
+    var h = w * ah / aw;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    return { w: w, h: h, dpr: dpr };
+  }
+  var tDim = fitCanvas(traces, 680, 170);
+  var eDim = fitCanvas(errsCv, 680, 100);
+  window.addEventListener('resize', function () {
+    tDim = fitCanvas(traces, 680, 170);
+    eDim = fitCanvas(errsCv, 680, 100);
+  });
+
+  // trace buffer: waveforms, sampled every 2nd step
+  var BUF = 640;
+  var bufE = new Float32Array(BUF), bufY = new Float32Array(BUF), bufC = new Float32Array(BUF), bufS = new Float32Array(BUF);
+  var hasS = new Uint8Array(BUF);
+  var bufIdx = 0, bufFill = 0;
+  function pushTrace() {
+    bufE[bufIdx] = world; bufY[bufIdx] = y; bufC[bufIdx] = cueNow;
+    bufS[bufIdx] = SUGGEST * misinfo(th);
+    hasS[bufIdx] = mode === 'question' ? 1 : 0;
+    bufIdx = (bufIdx + 1) % BUF;
+    if (bufFill < BUF) bufFill++;
+  }
+
+  // error strip: emaErr history + episode flag, sampled every 6th step
+  var EBUF = 640;
+  var bufErr = new Float32Array(EBUF);
+  var bufMode = new Uint8Array(EBUF);    // 0 idle, 1 retell, 2 question, 3 relive
+  var eIdx = 0, eFill = 0;
+  function modeCode() {
+    return mode === 'retell' ? 1 : (mode === 'question' ? 2 : (mode === 'study' ? 3 : 0));
+  }
+  function pushErr() {
+    bufErr[eIdx] = emaErr;
+    bufMode[eIdx] = modeCode();
+    eIdx = (eIdx + 1) % EBUF;
+    if (eFill < EBUF) eFill++;
+  }
+
+  function drawLine(ctx, dim, buf, idx, fill, total, color, width, yOf, gateBuf, dashed) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    if (dashed) ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    var started = false;
+    for (var i = 0; i < fill; i++) {
+      var k = (idx - fill + i + 2 * total) % total;
+      if (gateBuf && !gateBuf[k]) { started = false; continue; }
+      var px = i / (total - 1) * dim.w;
+      var py = yOf(buf[k], dim);
+      if (!started) { ctx.moveTo(px, py); started = true; } else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    if (dashed) ctx.setLineDash([]);
+  }
+
+  function traceY(v, dim) { return dim.h / 2 - v * dim.h / 6.0; }
+  function errYv(v, dim)  { return dim.h - 6 - Math.min(1, v / 0.6) * (dim.h - 16); }
+
+  function anySugg() {
+    for (var i = 0; i < bufFill; i++) if (hasS[i]) return true;
+    return false;
+  }
+
+  function drawTraces() {
+    tctx.setTransform(tDim.dpr, 0, 0, tDim.dpr, 0, 0);
+    tctx.clearRect(0, 0, tDim.w, tDim.h);
+    tctx.strokeStyle = 'rgba(29,26,20,0.12)';
+    tctx.lineWidth = 1;
+    tctx.beginPath(); tctx.moveTo(0, tDim.h / 2); tctx.lineTo(tDim.w, tDim.h / 2); tctx.stroke();
+    drawLine(tctx, tDim, bufC, bufIdx, bufFill, BUF, 'rgba(154,145,126,0.5)', 1, traceY, null, false);
+    if (anySugg()) drawLine(tctx, tDim, bufS, bufIdx, bufFill, BUF, '#4a6a72', 1.4, traceY, hasS, true);
+    drawLine(tctx, tDim, bufE, bufIdx, bufFill, BUF, '#1d1a14', 1.7, traceY, null, false);
+    drawLine(tctx, tDim, bufY, bufIdx, bufFill, BUF, '#c44a3b', 1.9, traceY, null, false);
+  }
+
+  var BAND = { 1: 'rgba(201,111,26,0.15)', 2: 'rgba(196,74,59,0.16)', 3: 'rgba(122,138,83,0.18)' };
+  function drawErrs() {
+    ectx.setTransform(eDim.dpr, 0, 0, eDim.dpr, 0, 0);
+    ectx.clearRect(0, 0, eDim.w, eDim.h);
+
+    // episode bands
+    var runStart = -1, runMode = 0;
+    for (var i = 0; i <= eFill; i++) {
+      var m = 0;
+      if (i < eFill) {
+        var k = (eIdx - eFill + i + 2 * EBUF) % EBUF;
+        m = bufMode[k];
+      }
+      if (m !== runMode) {
+        if (runMode !== 0 && runStart >= 0) {
+          var x0 = runStart / (EBUF - 1) * eDim.w;
+          var x1 = i / (EBUF - 1) * eDim.w;
+          ectx.fillStyle = BAND[runMode];
+          ectx.fillRect(x0, 0, Math.max(1.5, x1 - x0), eDim.h);
+        }
+        runStart = i; runMode = m;
+      }
+    }
+
+    ectx.strokeStyle = 'rgba(29,26,20,0.12)';
+    ectx.lineWidth = 1;
+    ectx.beginPath(); ectx.moveTo(0, eDim.h - 6); ectx.lineTo(eDim.w, eDim.h - 6); ectx.stroke();
+    drawLine(ectx, eDim, bufErr, eIdx, eFill, EBUF, '#1d1a14', 1.6, errYv, null, false);
+  }
+
+  // ---------- meters / chip / buttons ----------
+  var gistBar = document.getElementById('gistBar'), gistVal = document.getElementById('gistVal');
+  var detailBar = document.getElementById('detailBar'), detailVal = document.getElementById('detailVal');
+  var intrBar = document.getElementById('intrBar'), intrVal = document.getElementById('intrVal');
+  var stateChip = document.getElementById('stateChip');
+
+  function goodColor(v) { return v >= 0.7 ? 'var(--moss)' : (v >= 0.35 ? 'var(--strong)' : 'var(--hot)'); }
+  function badColor(v)  { return v <= 0.15 ? 'var(--moss)' : (v <= 0.4 ? 'var(--strong)' : 'var(--hot)'); }
+  function drawMeters() {
+    gistBar.style.width = (gist * 100).toFixed(1) + '%';
+    gistBar.style.background = goodColor(gist);
+    gistVal.textContent = gist.toFixed(2);
+    detailBar.style.width = (detail * 100).toFixed(1) + '%';
+    detailBar.style.background = goodColor(detail);
+    detailVal.textContent = detail.toFixed(2);
+    intrBar.style.width = (intr * 100).toFixed(1) + '%';
+    intrBar.style.background = badColor(intr);
+    intrVal.textContent = intr.toFixed(2);
+  }
+
+  var runBtn = document.getElementById('runBtn');
+  var retellBtn = document.getElementById('retellBtn');
+  var questionBtn = document.getElementById('questionBtn');
+  var reliveBtn = document.getElementById('reliveBtn');
+  var running = true;
+
+  function setBusy(b) {
+    retellBtn.disabled = b;
+    questionBtn.disabled = b;
+    reliveBtn.disabled = b;
+  }
+  function updateChip() {
+    if (mode === 'retell') {
+      stateChip.className = 'chip live';
+      stateChip.textContent = 'Reconsolidating · retelling…';
+    } else if (mode === 'question') {
+      stateChip.className = 'chip live';
+      stateChip.textContent = 'Reconsolidating · leading question…';
+    } else if (mode === 'study') {
+      stateChip.className = 'chip live';
+      stateChip.textContent = 'Reliving the event…';
+    } else {
+      stateChip.className = 'chip';
+      if (retells === 0 && questions === 0) {
+        stateChip.innerHTML = 'Memory formed · <strong>untouched</strong>';
+      } else {
+        stateChip.innerHTML = 'Retellings · <strong>' + retells + '</strong> · Leading questions · <strong>' + questions + '</strong>';
+      }
+    }
+  }
+
+  function beginEpisode(m, steps) {
+    if (mode !== 'idle') return;
+    if (m === 'retell' || m === 'question') wSnap.set(wOut);
+    resetP();
+    mode = m;
+    episodeLeft = steps;
+    if (m === 'retell') retells++;
+    if (m === 'question') questions++;
+    setBusy(true);
+    updateChip();
+    if (reduced && !running) runReducedEpisode();
+  }
+  function endEpisode() {
+    mode = 'idle';
+    setBusy(false);
+    if (modeJustRelived) { retells = 0; questions = 0; modeJustRelived = false; }
+    probe();
+    updateChip();
+  }
+  var modeJustRelived = false;
+
+  retellBtn.addEventListener('click', function () { beginEpisode('retell', 900); });
+  questionBtn.addEventListener('click', function () { beginEpisode('question', 900); });
+  reliveBtn.addEventListener('click', function () { modeJustRelived = true; beginEpisode('study', 2000); });
+
+  runBtn.addEventListener('click', function () {
+    running = !running;
+    runBtn.textContent = running ? 'Pause' : 'Run';
+    runBtn.setAttribute('aria-pressed', String(running));
+    if (running) requestAnimationFrame(frame);
+  });
+
+  // ---------- main loop ----------
+  var stepCount = 0, PROBE_EVERY = 150;
+  function advance(steps) {
+    for (var i = 0; i < steps; i++) {
+      simStep();
+      stepCount++;
+      if (stepCount % 2 === 0) pushTrace();
+      if (stepCount % 6 === 0) pushErr();
+      if (stepCount % PROBE_EVERY === 0) probe();
+    }
+  }
+  function stepsPerFrame() {
+    if (mode === 'study') return 16;
+    if (mode === 'retell' || mode === 'question') return 8;
+    return 2;
+  }
+  function frame() {
+    if (!running) return;
+    advance(stepsPerFrame());
+    drawTraces();
+    drawErrs();
+    drawMeters();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------- initial study: the event itself, run offstage ----------
+  mode = 'study';
+  for (var s0 = 0; s0 < 2500; s0++) simStep();
+  mode = 'idle';
+  // prefill the buffers with settled idle history
+  advance(1600);
+  probe();
+  updateChip();
+
+  // ---------- reduced motion ----------
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function runReducedEpisode() {
+    // run the whole episode (plus a settling tail) synchronously, then draw once
+    while (mode !== 'idle') advance(50);
+    advance(300);
+    drawTraces(); drawErrs(); drawMeters();
+  }
+  if (reduced) {
+    running = false;
+    runBtn.textContent = 'Run';
+    runBtn.setAttribute('aria-pressed', 'false');
+    drawTraces(); drawErrs(); drawMeters();
+  } else {
+    requestAnimationFrame(frame);
+  }
+})();
+</script>
+</body>
+</html>

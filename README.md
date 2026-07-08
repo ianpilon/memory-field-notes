@@ -30,6 +30,19 @@ A companion essay (`contrast.html`) that teaches the loop claim by contrast, in 
 1. **One arrow apart.** An animated diagram that cuts the six-station ring and unrolls it into a flat pipeline. The return arrow dangles into nothing, and the self fades out with its spokes: a pipeline has no hub for a self to occupy.
 2. **The twin experiment.** The same live reservoir, with a "cut" button that clones the memory's readout and freezes the copy. Memory and recording are identical at the instant of the cut, then part company as the world drifts. The divergence wedge between their error curves is the argument.
 
-All three volumes live in this repo and carry a shared series nav: Vol. I (`activation.html`, a copy of [spreading-activation-demo](https://github.com/ianpilon/spreading-activation-demo)), Vol. II (`index.html`), and Vol. III (`contrast.html`), so you can move between volumes without leaving the site.
+## Vol. IV — Every recall reopens the write
+
+**Live page:** https://ianpilon.github.io/reservoir-memory-demo/reconsolidation.html
+
+Vol. III conceded that the model didn't touch memories being reshaped by every act of recall. Vol. IV (`reconsolidation.html`) closes that gap: the same reservoir, holding a memory of a *finished* event. The world signal is gone; only a recall cue remains, so the only thing that can retrain the readout is the act of remembering itself.
+
+- **Leave it alone** — an unrecalled memory never changes. Between recalls, a memory is a recording.
+- **Retell it** — each retelling reconsolidates toward a schematized copy of the last telling. Detail washes out ~30% per retelling while gist holds. Bartlett's (1932) serial reproduction, run on weights.
+- **Ask a leading question** — a suggestion mixed into one recall gets written in, then carried forward by later innocent retellings as if it had always been there. The Loftus misinformation effect, live.
+- **Relive the event** — the only undo, and the punchline: real past events have no relive button. Vol. II's distortions healed in seconds because the world was still streaming in; a finished event has no world left to appeal to.
+
+Gist / detail / intrusion meters are scored against an offstage copy of the original event that the network (like a real rememberer) has no access to.
+
+All four volumes live in this repo and carry a shared series nav: Vol. I (`activation.html`, a copy of [spreading-activation-demo](https://github.com/ianpilon/spreading-activation-demo)), Vol. II (`index.html`), Vol. III (`contrast.html`), and Vol. IV (`reconsolidation.html`), so you can move between volumes without leaving the site.
 
 Each page is one self-contained HTML file: inline CSS, canvas simulation, and SVG, no external assets. Companion to [memory-living-loop](https://github.com/ianpilon/memory-living-loop).
