@@ -1,6 +1,6 @@
 # The engine: a closed cycle over reservoirs
 
-**Live page:** https://ianpilon.github.io/memory-field-notes/
+**Live page:** https://ianpilon.github.io/memory-field-notes/engine.html — the series opens with Vol. I at the [site root](https://ianpilon.github.io/memory-field-notes/).
 
 An interactive essay on the reservoir-computing model of memory, with a real echo state network running live in the browser. Field Notes Vol. II, following [spreading-activation-demo](https://github.com/ianpilon/spreading-activation-demo) (Vol. I).
 
@@ -43,6 +43,6 @@ Vol. III conceded that the model didn't touch memories being reshaped by every a
 
 Gist / detail / intrusion meters are scored against an offstage copy of the original event that the network (like a real rememberer) has no access to.
 
-All four volumes live in this repo and carry a shared series nav: Vol. I (`activation.html`, a copy of [spreading-activation-demo](https://github.com/ianpilon/spreading-activation-demo)), Vol. II (`index.html`), Vol. III (`contrast.html`), and Vol. IV (`reconsolidation.html`), so you can move between volumes without leaving the site.
+All four volumes live in this repo and carry a shared series nav: Vol. I (`index.html`, the site root, a copy of [spreading-activation-demo](https://github.com/ianpilon/spreading-activation-demo)), Vol. II (`engine.html`), Vol. III (`contrast.html`), and Vol. IV (`reconsolidation.html`), so you can move between volumes without leaving the site.
 
 Each page is one self-contained HTML file: inline CSS, canvas simulation, and SVG, no external assets. Companion to [memory-living-loop](https://github.com/ianpilon/memory-living-loop).
